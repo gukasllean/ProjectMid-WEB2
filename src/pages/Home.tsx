@@ -49,7 +49,6 @@ const HomePage: React.FC = () => {
     }
   ];
 
-  // Function to render icon based on name (simplified example)
   const renderIcon = (iconName: string) => {
     switch (iconName) {
       case 'shopping-bag':
@@ -93,7 +92,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
+      {/* Hero*/}
       <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
         <div className="max-w-6xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
           <div className="text-center">
@@ -174,7 +173,7 @@ const HomePage: React.FC = () => {
         </section>
       </main>
 
-      {/* Footer */}
+      {/*Footer*/}
       <footer className="bg-gray-100 border-t border-gray-200 mt-16">
         <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
           <p className="text-center text-gray-500">
