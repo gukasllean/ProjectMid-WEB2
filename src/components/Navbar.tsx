@@ -5,7 +5,7 @@ import { NavLink } from "react-router-dom"
 const navigation = [
 	{ name: 'Product', to: '/product', current: true },
 	{ name: 'Recipes', to: '/recipes', current: false },
-	{ name: 'Carts', to: '/carts', current: false },
+	{ name: 'Todos', to: '/carts', current: false },
 	{ name: 'Post', to: '/posts', current: false },
 ]
 
