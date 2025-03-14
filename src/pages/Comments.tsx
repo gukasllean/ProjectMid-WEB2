@@ -1,16 +1,9 @@
-// pages/Comments.tsx
-import React, { useState, useEffect } from 'react';
-import AxiosInstance from '../utils/AxiosInstance';
-import { 
-  CommentForm, 
-  CommentList, 
-  ErrorMessage,
-  Comment,
-  CommentForm as CommentFormType,
-  Post
-} from '../components/commentComp';
+'use client';
 
-// Interface for API response
+// CommentsPage.tsx - Main page for comments management
+import React, { useState, useEffect } from 'react';
+import CommentComponent, { Comment, User } from '../components/commentComp';
+
 interface CommentsResponse {
   comments: Comment[];
   total: number;
@@ -18,146 +11,73 @@ interface CommentsResponse {
   limit: number;
 }
 
-// API Services
-const fetchComments = async (): Promise<Comment[]> => {
-  const response = await AxiosInstance.get<CommentsResponse>('/comments');
-  return response.data.comments || [];
-};
+interface NewComment {
+  body: string;
+  postId: number;
+  userId: number;
+}
 
-const fetchPosts = async (): Promise<Post[]> => {
-  const response = await AxiosInstance.get('/posts', { params: { limit: 10 } });
-  return response.data.posts?.map((post: any) => ({ 
-    id: post.id, 
-    title: post.title 
-  })) || [];
-};
-
-const addComment = async (commentForm: CommentFormType): Promise<Comment> => {
-  const response = await AxiosInstance.post<Comment>('/comments/add', commentForm);
-  return response.data;
-};
-
-const updateComment = async (id: number, body: string): Promise<Comment> => {
-  const response = await AxiosInstance.put<Comment>(`/comments/${id}`, { body });
-  return response.data;
-};
-
-const deleteComment = async (id: number): Promise<{ id: number; isDeleted: boolean }> => {
-  const response = await AxiosInstance.delete(`/comments/${id}`);
-  return response.data;
-};
-
-// Main Comments Component
-const Comments: React.FC = () => {
+const CommentsPage: React.FC = () => {
+  // Constants
+  const COMMENTS_PER_PAGE = 10;
+  
+  // State
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [commentForm, setCommentForm] = useState<CommentFormType>({
-    body: '',
-    userId: 1,
-    postId: 1
-  });
-  const [editMode, setEditMode] = useState<boolean>(false);
-  const [currentCommentId, setCurrentCommentId] = useState<number | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [deletingComments, setDeletingComments] = useState<Record<number, boolean>>({});
-  
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        const [commentsData, postsData] = await Promise.all([
-          fetchComments(),
-          fetchPosts()
-        ]);
-        
-        setComments(commentsData);
-        setPosts(postsData);
-        setLoading(false);
-      } catch (err) {
-        setError('Failed to load initial data');
-        setLoading(false);
-        console.error('Error loading initial data:', err);
-      }
-    };
-    
-    loadInitialData();
-  }, []);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [filter, setFilter] = useState<string>('');
+  const [newComment, setNewComment] = useState<string>('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<number>(1);
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLTextAreaElement | HTMLSelectElement>
-  ): void => {
-    const { name, value } = e.target;
-    
-    if (name === 'postId' || name === 'userId') {
-      setCommentForm({
-        ...commentForm,
-        [name]: parseInt(value, 10)
-      });
-    } else {
-      setCommentForm({
-        ...commentForm,
-        [name]: value
-      });
+  // Effects
+  useEffect(() => {
+    fetchComments();
+    fetchUsers();
+  }, [currentPage]);
+
+  // API Methods
+  const fetchComments = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const skip = (currentPage - 1) * COMMENTS_PER_PAGE;
+      const response = await fetch(`https://dummyjson.com/comments?limit=${COMMENTS_PER_PAGE}&skip=${skip}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch comments');
+      }
+      
+      const data: CommentsResponse = await response.json();
+      
+      setComments(data.comments);
+      setTotalPages(Math.ceil(data.total / COMMENTS_PER_PAGE));
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch comments');
+      setLoading(false);
     }
   };
 
-  const resetForm = (): void => {
-    setCommentForm({
-      body: '',
-      userId: 1,
-      postId: 1
-    });
-    setEditMode(false);
-    setCurrentCommentId(null);
-  };
-
-  const handleEditClick = (comment: Comment): void => {
-    setCommentForm({
-      body: comment.body,
-      userId: comment.userId,
-      postId: comment.postId
-    });
-    setCurrentCommentId(comment.id);
-    setEditMode(true);
-  };
-
-  const handleCancelClick = (): void => {
-    resetForm();
-  };
-
-  const handleDeleteClick = async (commentId: number): Promise<void> => {
+  const fetchUsers = async (): Promise<void> => {
     try {
-      // Set deleting state for visual feedback
-      setDeletingComments(prev => ({ ...prev, [commentId]: true }));
+      const response = await fetch('https://dummyjson.com/users?limit=10');
+      const data = await response.json();
       
-      const result = await deleteComment(commentId);
-      
-      if (result.isDeleted) {
-        // Remove from the comments list
-        setComments(comments.filter(comment => comment.id !== commentId));
-        
-        // If currently editing this comment, reset the form
-        if (currentCommentId === commentId) {
-          resetForm();
-        }
-      } else {
-        // If delete failed, reset the deleting state
-        setDeletingComments(prev => ({ ...prev, [commentId]: false }));
-        setError('Failed to delete comment');
+      if (data && data.users) {
+        setUsers(data.users.map((user: any) => ({ 
+          id: user.id, 
+          username: user.username || `User ${user.id}` 
+        })));
       }
     } catch (err) {
-      // Reset deleting state and show error
-      setDeletingComments(prev => ({ ...prev, [commentId]: false }));
-      setError('Failed to delete comment');
-      console.error('Error deleting comment:', err);
+      console.error('Error fetching users:', err);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault();
-    
-    if (!commentForm.body.trim()) {
+  const addComment = async (): Promise<void> => {
+    if (!newComment.trim()) {
       setError('Comment cannot be empty');
       return;
     }
@@ -165,62 +85,211 @@ const Comments: React.FC = () => {
     try {
       setLoading(true);
       
-      if (editMode && currentCommentId) {
-        // Update existing comment
-        const updatedComment = await updateComment(
-          currentCommentId, 
-          commentForm.body
-        );
-        
-        // Update the comment in the state
-        setComments(comments.map(comment => 
-          comment.id === currentCommentId ? updatedComment : comment
-        ));
-      } else {
-        // Add new comment
-        const addedComment = await addComment(commentForm);
-        
-        // Add the new comment to the list
-        setComments([addedComment, ...comments]);
+      const commentData: NewComment = {
+        body: newComment,
+        postId: 1, // Default post ID
+        userId: selectedUserId
+      };
+      
+      const response = await fetch('https://dummyjson.com/comments/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(commentData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to add comment');
       }
       
-      // Reset form
-      resetForm();
+      const addedComment: Comment = await response.json();
+      
+      setComments([addedComment, ...comments]);
+      setNewComment('');
       setLoading(false);
     } catch (err) {
-      setError(`Failed to ${editMode ? 'update' : 'add'} comment`);
+      setError(err instanceof Error ? err.message : 'Failed to add comment');
       setLoading(false);
-      console.error(`Error ${editMode ? 'updating' : 'adding'} comment:`, err);
     }
   };
 
+  // Event Handlers
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    setNewComment(e.target.value);
+  };
+
+  const handleUserChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
+    setSelectedUserId(parseInt(e.target.value, 10));
+  };
+
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    setFilter(e.target.value);
+  };
+
+  const handleUpdateComment = (updatedComment: Comment): void => {
+    setComments(comments.map(comment => 
+      comment.id === updatedComment.id ? updatedComment : comment
+    ));
+  };
+
+  const handleDeleteComment = (commentId: number): void => {
+    setComments(comments.filter(comment => comment.id !== commentId));
+  };
+
+  const handlePreviousPage = (): void => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = (): void => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  // Computed Properties
+  const filteredComments = comments.filter(comment => 
+    comment.body.toLowerCase().includes(filter.toLowerCase()) ||
+    comment.user.username.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  // Render
   return (
-    <div className="max-w-3xl mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Comments</h1>
+    <div className="max-w-4xl mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-8 text-center">Comments</h1>
       
-      {error && <ErrorMessage message={error} onDismiss={() => setError(null)} />}
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+          <button 
+            className="absolute top-0 bottom-0 right-0 px-4 py-3"
+            onClick={() => setError(null)}
+          >
+            <span className="text-xl">&times;</span>
+          </button>
+        </div>
+      )}
       
-      {/* Comment form */}
-      <CommentForm
-        commentForm={commentForm}
-        editMode={editMode}
-        loading={loading}
-        posts={posts}
-        handleInputChange={handleInputChange}
-        handleCancelClick={handleCancelClick}
-        handleSubmit={handleSubmit}
-      />
+      {/* Add comment form */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Add New Comment</h2>
+        <div className="mb-4">
+          <textarea
+            value={newComment}
+            onChange={handleCommentChange}
+            placeholder="Write your comment here..."
+            className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[100px]"
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2" htmlFor="user">User</label>
+          <select
+            id="user"
+            value={selectedUserId}
+            onChange={handleUserChange}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {users.map(user => (
+              <option key={user.id} value={user.id}>
+                {user.username}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="flex justify-end">
+          <button 
+            onClick={addComment} 
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-400"
+          >
+            {loading ? 'Adding...' : 'Add Comment'}
+          </button>
+        </div>
+      </div>
+      
+      {/* Filter comments */}
+      <div className="mb-6">
+        <input
+          type="text"
+          value={filter}
+          onChange={handleFilterChange}
+          placeholder="Filter comments..."
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
       
       {/* Comments list */}
-      <CommentList
-        comments={comments}
-        loading={loading}
-        deletingComments={deletingComments}
-        handleEditClick={handleEditClick}
-        handleDeleteClick={handleDeleteClick}
-      />
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-6">All Comments</h2>
+        
+        {loading && comments.length === 0 ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        ) : (
+          <>
+            {filteredComments.length > 0 ? (
+              <div className="space-y-4">
+                {filteredComments.map(comment => (
+                  <CommentComponent
+                    key={comment.id}
+                    comment={comment}
+                    onUpdate={handleUpdateComment}
+                    onDelete={handleDeleteComment}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No comments found</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {filter ? 'Try adjusting your filter.' : 'Add a comment to get started.'}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      
+      {/* Pagination */}
+      {filteredComments.length > 0 && (
+        <div className="flex justify-center items-center space-x-6">
+          <button 
+            onClick={handlePreviousPage} 
+            disabled={currentPage === 1}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              currentPage === 1 
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+          >
+            Previous
+          </button>
+          <span className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button 
+            onClick={handleNextPage} 
+            disabled={currentPage === totalPages}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              currentPage === totalPages 
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Comments;
+export default CommentsPage;
